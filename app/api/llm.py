@@ -49,15 +49,25 @@ async def test_llm_connection(request: LLMTestRequest) -> LLMTestResponse:
         if "401" in err_str or "unauthorized" in err_str or "invalid api key" in err_str:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Groq authentication failed.",
+                detail="Groq authentication failed. Please verify GROQ_API_KEY in .env.",
+            )
+        elif "403" in err_str or "access denied" in err_str or "permission" in err_str:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Groq API request blocked: Access denied. Please check your network settings (disable VPN, proxy, or restricted network).",
             )
         elif "429" in err_str or "rate limit" in err_str or "quota" in err_str:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Groq rate limit exceeded. Please try again later.",
             )
+        elif "404" in err_str or "model_not_found" in err_str or "does not exist" in err_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Groq model '{groq_manager.model}' not found or unsupported.",
+            )
         else:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Groq API request failed.",
+                detail=f"Groq API request failed: {sanitize_error_message(str(exc))}",
             )

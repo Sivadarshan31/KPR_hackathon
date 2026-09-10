@@ -10,7 +10,7 @@ APP_DESCRIPTION = "Agentic AI backend for intelligent multi-format content trans
 APP_VERSION = "0.1.0"
 
 # Groq Model & Generation Configuration
-GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_TEMPERATURE: float = float(os.getenv("GROQ_TEMPERATURE", "0.2"))
 DEFAULT_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", "2500"))
 

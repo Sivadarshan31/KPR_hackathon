@@ -47,6 +47,11 @@ async def run_source_to_strategy_pipeline(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Groq rate limit exceeded across configured keys. Please retry later.",
             )
+        elif "403" in err_str or "access denied" in err_str or "permission" in err_str:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Groq API request blocked: Access denied. Please check your network settings (disable VPN, proxy, or restricted network).",
+            )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Groq provider error encountered during pipeline execution.",
@@ -98,6 +103,11 @@ async def run_full_content_generation_pipeline(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Groq rate limit exceeded across configured keys. Please retry later.",
+            )
+        elif "403" in err_str or "access denied" in err_str or "permission" in err_str:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Groq API request blocked: Access denied. Please check your network settings (disable VPN, proxy, or restricted network).",
             )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

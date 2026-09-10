@@ -38,12 +38,24 @@ Operational Routing Rules:
    - In reasoning_summary, provide a single brief operational sentence (e.g., "User requested LinkedIn post generation and validation from source text.").
    - Do NOT engage in lengthy internal deliberations or verbose thinking. Output the target JSON directly.
 8. Output Format:
-   - You MUST output a single valid, raw JSON object matching the schema below.
-   - Do NOT wrap in markdown code blocks or backticks.
+   - You MUST output a single valid, raw JSON object INSTANCE populating real values for all fields.
+   - Do NOT output the schema or meta-properties. Output ONLY a JSON object matching this structure:
 
-Target Schema:
-{schema}"""
-SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE
+Example JSON Output:
+{
+  "intent": "publish_content",
+  "requires_source_understanding": true,
+  "requires_strategy": true,
+  "requires_generation": true,
+  "requires_validation": true,
+  "requires_action": true,
+  "requires_human_approval": true,
+  "requested_platforms": ["linkedin"],
+  "requested_formats": ["post"],
+  "requested_action": "publish",
+  "user_request": "Take this report and create a professional LinkedIn post and publish it.",
+  "reasoning_summary": "User requested LinkedIn post generation and publishing from raw source text."
+}"""
 
 
 def _parse_decision_json(raw_text: str) -> MasterDecision:
@@ -94,7 +106,7 @@ class MasterAgent:
         self._schema_json = json.dumps(MasterDecision.model_json_schema(), indent=2)
 
     def _get_system_prompt(self) -> str:
-        return SYSTEM_PROMPT_TEMPLATE.format(schema=self._schema_json)
+        return SYSTEM_PROMPT_TEMPLATE
 
     def _format_input_prompt(
         self,

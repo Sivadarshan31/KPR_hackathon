@@ -32,14 +32,27 @@ Strict Operational Guidelines:
    - Do NOT validate or criticize the source.
 
 Output Format:
-You MUST output a single valid, raw JSON object matching the schema below.
-Do NOT wrap in markdown code blocks or backticks.
-Only return the JSON object.
+You MUST output a single valid, raw JSON object INSTANCE populating real values for all fields (do NOT output schema definition metadata).
+Output ONLY a JSON object matching this structure:
 
-Target Schema:
-{schema}"""
+Example JSON Output:
+{
+  "title": "Healthcare AI Impact Report",
+  "summary": "Artificial intelligence diagnostic tools reduce diagnostic latency by 40% in radiology.",
+  "main_topic": "Healthcare AI Diagnostics",
+  "key_points": ["AI diagnostic tools reduce diagnostic latency by 40%."],
+  "facts": ["Hospitals saved 18 hours per doctor per week."],
+  "entities": ["Hospitals", "Radiologists"],
+  "important_numbers": ["40%", "18 hours"],
+  "dates": ["2026"],
+  "claims": [],
+  "terminology": ["Diagnostic Latency", "Radiology"],
+  "target_audience": "Healthcare Leaders",
+  "tone": "Informative",
+  "source_type": "Report"
+}"""
 
-SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.replace("\nTarget Schema:\n{schema}", "")
+SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE
 
 
 def _parse_source_json(raw_text: str) -> SourceUnderstanding:
@@ -87,7 +100,7 @@ class SourceUnderstandingAgent:
         self._schema_json = json.dumps(SourceUnderstanding.model_json_schema(), indent=2)
 
     def _get_system_prompt(self) -> str:
-        return SYSTEM_PROMPT_TEMPLATE.format(schema=self._schema_json)
+        return SYSTEM_PROMPT_TEMPLATE
 
     def understand(self, source_text: str) -> SourceUnderstanding:
         """

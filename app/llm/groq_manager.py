@@ -1,7 +1,10 @@
+import json
 import logging
-from typing import Any, List, Optional, Sequence, Union
+import re
+from typing import Any, Dict, List, Optional, Sequence, Type, TypeVar, Union
 import httpx
 import groq
+from pydantic import BaseModel, ValidationError
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.fallbacks import RunnableWithFallbacks
@@ -11,10 +14,16 @@ from app.config import DEFAULT_TEMPERATURE, GROQ_API_KEYS, GROQ_MODEL, DEFAULT_M
 from app.llm.exceptions import (
     GroqConfigurationError,
     GroqRequestError,
+    LLMAllKeysExhaustedError,
+    LLMConfigurationError,
+    LLMRateLimitError,
+    LLMResponseError,
     sanitize_error_message,
 )
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
 
 # Exceptions that trigger key fallback in LangChain RunnableWithFallbacks
 RETRYABLE_EXCEPTIONS = (
@@ -44,6 +53,9 @@ def is_retryable_error(exc: Exception) -> bool:
         TypeError,
         KeyError,
         GroqConfigurationError,
+        LLMConfigurationError,
+        LLMResponseError,
+        ValidationError,
     )):
         return False
 
@@ -81,7 +93,7 @@ class GroqManager:
     """
     Centralized LLM manager for Groq API integration across ContentForge agents.
     Provides key rotation and fallback across configured Groq API keys.
-    Maintains zero-secret-leakage guarantees and full LangChain compatibility.
+    Maintains zero-secret-leakage guarantees, structured JSON parsing, and full LangChain compatibility.
     """
 
     def __init__(
@@ -122,7 +134,7 @@ class GroqManager:
         Never exposes the API key in logs, representations, or returns.
         """
         if not self.is_configured():
-            raise GroqConfigurationError("No Groq API keys are configured.")
+            raise LLMConfigurationError("No Groq API keys are configured.")
 
         total_keys = len(self._api_keys)
         if key_slot < 1 or key_slot > total_keys:
@@ -154,7 +166,7 @@ class GroqManager:
         Supports .invoke(), .ainvoke(), .stream(), and .with_structured_output().
         """
         if not self.is_configured():
-            raise GroqConfigurationError("No Groq API keys are configured.")
+            raise LLMConfigurationError("No Groq API keys are configured.")
 
         temp = self.default_temperature if temperature is None else temperature
         tokens = max_tokens if max_tokens is not None else self.default_max_tokens
@@ -181,10 +193,10 @@ class GroqManager:
     ) -> Any:
         """
         Executes a synchronous request with explicit key fallback across slots (1 -> 2 -> 3).
-        Rotates only on retryable errors and raises sanitized GroqRequestError on failure.
+        Rotates only on retryable errors and raises sanitized LLMAllKeysExhaustedError on failure.
         """
         if not self.is_configured():
-            raise GroqConfigurationError("No Groq API keys are configured.")
+            raise LLMConfigurationError("No Groq API keys are configured.")
 
         messages = (
             [HumanMessage(content=input_data)]
@@ -228,8 +240,8 @@ class GroqManager:
                         total_keys,
                     )
 
-        raise GroqRequestError(
-            f"Groq request failed after attempting all {total_keys} configured keys. Last error: {sanitize_error_message(str(last_exception), self._api_keys)}",
+        raise LLMAllKeysExhaustedError(
+            f"Groq request failed after attempting all {total_keys} configured keys. All configured Groq API keys are currently unavailable. Last error: {sanitize_error_message(str(last_exception), self._api_keys)}",
             original_error=last_exception,
         )
 
@@ -241,10 +253,10 @@ class GroqManager:
     ) -> Any:
         """
         Executes an asynchronous request with explicit key fallback across slots (1 -> 2 -> 3).
-        Rotates only on retryable errors and raises sanitized GroqRequestError on failure.
+        Rotates only on retryable errors and raises sanitized LLMAllKeysExhaustedError on failure.
         """
         if not self.is_configured():
-            raise GroqConfigurationError("No Groq API keys are configured.")
+            raise LLMConfigurationError("No Groq API keys are configured.")
 
         messages = (
             [HumanMessage(content=input_data)]
@@ -288,8 +300,8 @@ class GroqManager:
                         total_keys,
                     )
 
-        raise GroqRequestError(
-            f"Groq request failed after attempting all {total_keys} configured keys. Last error: {sanitize_error_message(str(last_exception), self._api_keys)}",
+        raise LLMAllKeysExhaustedError(
+            f"Groq request failed after attempting all {total_keys} configured keys. All configured Groq API keys are currently unavailable. Last error: {sanitize_error_message(str(last_exception), self._api_keys)}",
             original_error=last_exception,
         )
 
@@ -307,6 +319,59 @@ class GroqManager:
             temperature=temperature,
         )
         return str(response.content)
+
+    def parse_json_response(self, text: str) -> Dict[str, Any]:
+        """
+        Extracts and parses JSON content from an LLM response string.
+        Strips markdown code blocks (```json ... ```) if present.
+        Raises LLMResponseError on invalid JSON.
+        """
+        if not text or not text.strip():
+            raise LLMResponseError("LLM response text is empty.", raw_response=text)
+
+        cleaned = text.strip()
+        # Regex to strip ```json ... ``` code fence if present
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+        if match:
+            cleaned = match.group(1).strip()
+
+        try:
+            parsed = json.loads(cleaned)
+            if not isinstance(parsed, dict):
+                raise LLMResponseError(
+                    f"Expected JSON object (dict), got {type(parsed).__name__}.",
+                    raw_response=text,
+                )
+            return parsed
+        except json.JSONDecodeError as exc:
+            raise LLMResponseError(
+                f"Failed to decode valid JSON from LLM response: {exc}",
+                original_error=exc,
+                raw_response=text,
+            ) from exc
+
+    def parse_structured_output(
+        self,
+        text_or_dict: Union[str, Dict[str, Any]],
+        schema_cls: Type[T],
+    ) -> T:
+        """
+        Parses and validates JSON data into a Pydantic model.
+        Raises LLMResponseError on validation failure.
+        """
+        if isinstance(text_or_dict, str):
+            data = self.parse_json_response(text_or_dict)
+        else:
+            data = text_or_dict
+
+        try:
+            return schema_cls.model_validate(data)
+        except ValidationError as exc:
+            raise LLMResponseError(
+                f"LLM output failed Pydantic validation for {schema_cls.__name__}: {exc}",
+                original_error=exc,
+                raw_response=str(text_or_dict),
+            ) from exc
 
 
 # Reusable default instance

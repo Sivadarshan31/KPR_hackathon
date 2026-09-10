@@ -18,6 +18,10 @@ class ActionRequest(BaseModel):
         default="all",
         description="Target platform: 'linkedin', 'instagram', 'advisory', or 'all'.",
     )
+    export_format: Optional[str] = Field(
+        default="markdown",
+        description="Desired export format when action is 'export': 'markdown', 'html', or 'json'.",
+    )
     content: GeneratedContent = Field(
         ...,
         description="The validated generated content from Agent 3 / Agent 4.",
@@ -47,6 +51,17 @@ class ActionRequest(BaseModel):
         allowed = {"linkedin", "instagram", "advisory", "all"}
         if cleaned not in allowed:
             raise ValueError(f"Unsupported platform: '{v}'. Must be one of {allowed}.")
+        return cleaned
+
+    @field_validator("export_format")
+    @classmethod
+    def validate_export_format(cls, v: Optional[str]) -> str:
+        if not v:
+            return "markdown"
+        cleaned = v.strip().lower()
+        allowed = {"markdown", "md", "html", "json"}
+        if cleaned not in allowed:
+            raise ValueError(f"Unsupported export format: '{v}'. Must be one of {allowed}.")
         return cleaned
 
 

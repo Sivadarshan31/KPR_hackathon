@@ -1,9 +1,14 @@
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
-
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field, field_validator
 from app.schemas.source_understanding import SourceUnderstanding
 from app.schemas.content_strategy import ContentStrategy
 from app.schemas.content_generation import GeneratedContent
+
+
+class ValidationStatus(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
 
 
 class ValidationResult(BaseModel):
@@ -11,15 +16,17 @@ class ValidationResult(BaseModel):
     Structured validation output model produced by Agent 4 (Validation Agent).
     Captures factual grounding, hallucination checks, score, and actionable issues.
     """
+    status: ValidationStatus = Field(
+        default=ValidationStatus.PASS,
+        description="Validation status outcome: 'PASS' or 'FAIL'.",
+    )
     passed: bool = Field(
-        ...,
-        description="Whether the generated content satisfies all validation criteria (no hallucinations, accurate numbers, grounded facts).",
+        default=True,
+        description="Whether the generated content satisfies all validation criteria.",
     )
     score: float = Field(
         ...,
-        ge=0.0,
-        le=1.0,
-        description="Quality and fidelity score from 0.0 to 1.0. Typically >= 0.8 signifies a pass.",
+        description="Quality and fidelity score. Supported ranges: 0 to 100 or 0.0 to 1.0.",
     )
     issues: List[str] = Field(
         default_factory=list,
@@ -33,6 +40,26 @@ class ValidationResult(BaseModel):
         default_factory=dict,
         description="Granular check flags: grounding_verified, no_hallucinations, numbers_accurate, format_compliance.",
     )
+
+    @field_validator("score")
+    @classmethod
+    def validate_score_range(cls, v: float) -> float:
+        if v < 0.0 or v > 100.0:
+            raise ValueError(f"Validation score must be between 0 and 100 (got {v}).")
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v: Any) -> ValidationStatus:
+        if isinstance(v, bool):
+            return ValidationStatus.PASS if v else ValidationStatus.FAIL
+        if isinstance(v, str):
+            cleaned = v.strip().upper()
+            if cleaned == "PASS":
+                return ValidationStatus.PASS
+            if cleaned == "FAIL":
+                return ValidationStatus.FAIL
+        return v
 
 
 class ValidationRequest(BaseModel):

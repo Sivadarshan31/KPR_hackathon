@@ -12,6 +12,7 @@ class ActionAgent:
     Agent 5: Action / Publishing Agent.
     Executes preview, export, and publication workflows on validated content.
     Enforces a strict server-side validation gate to block unvalidated or failed content.
+    Integrated with ExportService for Markdown, HTML, and JSON multi-format rendering.
     """
 
     def preview_content(
@@ -43,28 +44,45 @@ class ActionAgent:
         platform: str,
         validation_status: str,
         validation_issues: List[str],
+        export_format: str = "markdown",
     ) -> ActionResult:
         """
-        Export Tool: Packages validated content into an export-ready structured dictionary.
+        Export Tool: Packages validated content into Markdown, HTML, or JSON export formats.
         """
-        logger.info("Executing export tool for platform '%s'.", platform)
-        export_payload: Dict[str, Any] = {
-            "format_version": "1.0",
-            "target_platform": platform,
-            "export_bundle": content.model_dump(exclude_none=True),
-        }
-        return ActionResult(
-            success=True,
-            action="export",
-            platform=platform,
-            action_allowed=True,
-            status="completed",
-            message=f"Content successfully packaged for export on platform '{platform}'.",
-            content=content,
-            validation_status=validation_status,
-            validation_issues=validation_issues,
-            exported_data=export_payload,
-        )
+        from app.services.export_service import export_service
+
+        logger.info("Executing export tool for platform '%s' in format '%s'.", platform, export_format)
+        try:
+            export_payload = export_service.format_export(
+                content=content,
+                platform=platform,
+                export_format=export_format,
+            )
+            return ActionResult(
+                success=True,
+                action="export",
+                platform=platform,
+                action_allowed=True,
+                status="completed",
+                message=f"Content successfully formatted for export as '{export_format}' for platform '{platform}'.",
+                content=content,
+                validation_status=validation_status,
+                validation_issues=validation_issues,
+                exported_data=export_payload,
+            )
+        except Exception as exc:
+            logger.error("Export formatting error: %s", exc)
+            return ActionResult(
+                success=False,
+                action="export",
+                platform=platform,
+                action_allowed=False,
+                status="failed",
+                message=f"Export failed: {str(exc)}",
+                content=content,
+                validation_status=validation_status,
+                validation_issues=validation_issues,
+            )
 
     def publish_content(
         self,
@@ -116,6 +134,7 @@ class ActionAgent:
         content: GeneratedContent,
         validation_status: str,
         validation_issues: Optional[List[str]] = None,
+        export_format: str = "markdown",
     ) -> ActionResult:
         """
         Synchronously routes to the requested deterministic tool based on action type.
@@ -126,7 +145,7 @@ class ActionAgent:
         if act == "preview":
             return self.preview_content(content, platform, validation_status, issues)
         elif act == "export":
-            return self.export_content(content, platform, validation_status, issues)
+            return self.export_content(content, platform, validation_status, issues, export_format=export_format)
         elif act == "publish":
             return self.publish_content(content, platform, validation_status, issues)
         else:
@@ -149,6 +168,7 @@ class ActionAgent:
         content: GeneratedContent,
         validation_status: str,
         validation_issues: Optional[List[str]] = None,
+        export_format: str = "markdown",
     ) -> ActionResult:
         """
         Asynchronous wrapper for action execution.
@@ -159,6 +179,7 @@ class ActionAgent:
             content=content,
             validation_status=validation_status,
             validation_issues=validation_issues,
+            export_format=export_format,
         )
 
 

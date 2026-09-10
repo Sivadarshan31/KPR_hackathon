@@ -82,3 +82,18 @@ class SourceUnderstanding(BaseModel):
         default="Unknown",
         description="Identified document type (e.g., Article, Report, Research paper, Press release, Technical document, Case study), or 'Unknown'.",
     )
+
+    @property
+    def important_facts(self) -> List[str]:
+        """Alias for facts list."""
+        return self.facts
+
+    @property
+    def numbers(self) -> List[str]:
+        """Alias for important_numbers list."""
+        return self.important_numbers
+
+    @property
+    def important_terminology(self) -> List[str]:
+        """Alias for terminology list."""
+        return self.terminology

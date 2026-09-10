@@ -139,6 +139,16 @@ class ContentStrategy(BaseModel):
         description="Tailored strategy for Advisory / Executive format.",
     )
 
+    @property
+    def content_angle(self) -> str:
+        """Alias for overall_angle."""
+        return self.overall_angle
+
+    @property
+    def core_message(self) -> str:
+        """Alias for key_takeaway."""
+        return self.key_takeaway
+
 
 class ContentStrategyRequest(BaseModel):
     """

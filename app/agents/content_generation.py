@@ -191,9 +191,6 @@ class ContentGenerationAgent:
             sanitized = sanitize_error_message(str(exc))
             logger.error("Groq provider error during content generation: %s", sanitized)
             raise GroqRequestError(f"Groq request failed: {sanitized}", original_error=exc) from exc
-            sanitized = sanitize_error_message(str(exc))
-            logger.error("Groq provider error during content generation: %s", sanitized)
-            raise GroqRequestError(f"Groq request failed: {sanitized}", original_error=exc) from exc
 
         logger.info("Content Generation Agent successfully generated content.")
         return result

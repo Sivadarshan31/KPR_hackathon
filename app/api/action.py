@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/agents", tags=["Agents"])
     response_model=ActionResult,
     status_code=status.HTTP_200_OK,
     summary="Agent 5: Action / Publishing Agent",
-    description="Executes requested content action ('preview', 'export', 'publish'). Enforces strict server-side validation gating.",
+    description="Executes requested content action ('preview', 'export', 'publish') in Markdown, HTML, or JSON. Enforces strict server-side validation gating.",
 )
 async def process_action(
     request: ActionRequest,
@@ -30,6 +30,7 @@ async def process_action(
             content=request.content,
             validation_status=request.validation_status,
             validation_issues=request.validation_issues,
+            export_format=request.export_format or "markdown",
         )
         return result
     except ValueError as val_err:

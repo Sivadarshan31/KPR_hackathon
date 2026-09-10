@@ -1,8 +1,30 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 
 from app.schemas.source_understanding import SourceUnderstanding
 from app.schemas.content_strategy import ContentStrategy
+
+
+class LinkedInContent(BaseModel):
+    """
+    Structured content model for LinkedIn posts.
+    """
+    hook: str = Field(
+        ...,
+        description="Attention-grabbing opening line or headline for LinkedIn.",
+    )
+    body: str = Field(
+        ...,
+        description="Main body text of the LinkedIn post providing core insights and context.",
+    )
+    cta: str = Field(
+        ...,
+        description="Call to action driving professional engagement or discussion.",
+    )
+    hashtags: List[str] = Field(
+        default_factory=list,
+        description="List of relevant professional hashtags.",
+    )
 
 
 class InstagramContent(BaseModel):
@@ -28,23 +50,49 @@ class InstagramContent(BaseModel):
     )
 
 
+class AdvisoryContent(BaseModel):
+    """
+    Structured content model for Advisory / Executive Briefings.
+    """
+    title: str = Field(
+        ...,
+        description="Executive advisory title or subject line.",
+    )
+    summary: str = Field(
+        ...,
+        description="Brief high-level summary of the advisory briefing.",
+    )
+    important_information: List[str] = Field(
+        default_factory=list,
+        description="Key findings, critical metrics, or core information points.",
+    )
+    recommended_actions: List[str] = Field(
+        default_factory=list,
+        description="Actionable recommendations for leadership or decision-makers.",
+    )
+    warning: Optional[str] = Field(
+        default=None,
+        description="Optional warning, risk alert, or time-sensitive notice.",
+    )
+
+
 class GeneratedContent(BaseModel):
     """
     Structured output model for Agent 3 (Content Generation Agent).
     Encapsulates generated content across supported MVP channels (LinkedIn, Instagram, Advisory).
-    Fields are optional to support platform selectivity when strategy only requests specific channels.
+    Fields accept both structured models and formatted strings for maximum flexibility.
     """
-    linkedin: Optional[str] = Field(
+    linkedin: Optional[Union[LinkedInContent, str]] = Field(
         default=None,
-        description="Professional LinkedIn post with hook, body, spacing, and CTA based on strategy.",
+        description="Professional LinkedIn post (structured model or formatted string).",
     )
     instagram: Optional[InstagramContent] = Field(
         default=None,
         description="Structured Instagram content including caption, optional carousel slides, hashtags, and CTA.",
     )
-    advisory: Optional[str] = Field(
+    advisory: Optional[Union[AdvisoryContent, str]] = Field(
         default=None,
-        description="Concise advisory or executive briefing prioritizing high-signal actionable points.",
+        description="Concise advisory briefing (structured model or formatted string).",
     )
 
 
